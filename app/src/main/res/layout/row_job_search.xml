@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="?android:attr/listPreferredItemHeight"
+    android:padding="5dp">
+
+    <TextView
+        android:id="@+id/titleTv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:text="Medium Text"
+        android:textSize="22sp"
+        android:layout_above="@+id/locationTv"
+        android:layout_alignParentTop="true"/>
+
+    <TextView
+        android:id="@+id/companyTv"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_toRightOf="@id/titleTv"
+        android:layout_marginLeft="10dp"
+        android:text="Medium Text"
+        android:textSize="20sp"
+        android:textStyle="italic"
+        android:layout_above="@+id/locationTv"
+        android:layout_alignParentTop="true"/>
+
+
+    <TextView
+        android:id="@+id/locationTv"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Large Text"
+        android:textColor="@color/gray"
+        android:textSize="18sp"
+        android:layout_alignParentBottom="true"/>
+</RelativeLayout>

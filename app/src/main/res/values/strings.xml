@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Dice</string>
+    <string name="search_title">Search jobs</string>
+    <string name="search_hint">Software engineer, Mobile Engineer, Android...</string>
+    <string name="search_results">Search results will display here</string>
+    <string name="no_jobs_found">No jobs found matching your request</string>
+    <string name="title_activity_job">Job Details</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+
+</resources>
