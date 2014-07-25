@@ -13,6 +13,7 @@ import org.json.JSONObject;
  * Created by insearching on 20.07.2014.
  */
 public class JobDetails implements Parcelable {
+
     private String description;
     private String[] skills;
     private String webUrl;

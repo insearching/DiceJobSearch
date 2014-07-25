@@ -18,8 +18,10 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SearchView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.dicejobsearch.entity.JobListItem;
+import com.dicejobsearch.entity.RecommendedJobItem;
 import com.dicejobsearch.utils.Credentials;
 import com.dicejobsearch.utils.JSONHelper;
 import com.dicejobsearch.utils.KeyHelper;
@@ -29,7 +31,6 @@ import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
@@ -43,7 +44,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-public class MainActivity extends Activity implements AdapterView.OnItemClickListener {
+public class MainActivity extends Activity implements AdapterView.OnItemClickListener, AdapterView.OnItemLongClickListener {
 
     private String accessToken = null;
     private boolean isSearching = false;
@@ -54,6 +55,13 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
     private TextView infoTv;
 
     private ArrayList<JobListItem> mJobsList;
+    private ArrayList<RecommendedJobItem> mRecommendedJobsList;
+
+    enum SearchStatus {
+        DATA_RECIEVED, NO_JOBS_FOUND, NO_SEARCH_REQUEST, AUTHORIZING;
+    }
+
+    private SearchStatus mStatus;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,12 +70,16 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
 
         jobsListView = (ListView) findViewById(R.id.jobsListView);
         jobsListView.setOnItemClickListener(this);
+        jobsListView.setOnItemLongClickListener(this);
         progressBar = (ProgressBar) findViewById(R.id.progressBar);
         infoTv = (TextView) findViewById(R.id.infoTv);
 
         mJobsList = new ArrayList<JobListItem>();
+        mRecommendedJobsList = new ArrayList<RecommendedJobItem>();
 
         if (savedInstanceState == null) {
+            mStatus = SearchStatus.NO_SEARCH_REQUEST;
+            updateStatus();
             SharedPreferences prefs = getSharedPreferences("credentials", MODE_MULTI_PROCESS);
             if (prefs.contains(KeyHelper.ACCESS_TOKEN))
                 accessToken = prefs.getString(KeyHelper.ACCESS_TOKEN, null);
@@ -76,14 +88,34 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         } else {
             accessToken = savedInstanceState.getString(KeyHelper.ACCESS_TOKEN);
             mJobsList = savedInstanceState.getParcelableArrayList("job_list");
+            jobsListView.setAdapter(new JobAdapter(MainActivity.this, mJobsList));
             isSearching = savedInstanceState.getBoolean("is_searching");
             mQuery = savedInstanceState.getString("query");
-            jobsListView.setAdapter(new JobAdapter(MainActivity.this, mJobsList));
-            infoTv.setVisibility(View.INVISIBLE);
-            if (mJobsList.size() == 0) {
-                infoTv.setText(getString(R.string.no_jobs_found));
+            mStatus = (SearchStatus) savedInstanceState.getSerializable("status");
+            updateStatus();
+        }
+    }
+
+    private void updateStatus() {
+        switch (mStatus) {
+            case AUTHORIZING:
                 infoTv.setVisibility(View.VISIBLE);
-            }
+                infoTv.setText(getString(R.string.authorizing));
+                jobsListView.setVisibility(View.INVISIBLE);
+                progressBar.setVisibility(View.VISIBLE);
+                break;
+            case DATA_RECIEVED:
+                infoTv.setVisibility(View.INVISIBLE);
+                jobsListView.setVisibility(View.VISIBLE);
+                break;
+            case NO_JOBS_FOUND:
+                infoTv.setVisibility(View.VISIBLE);
+                infoTv.setText(getString(R.string.no_jobs_found));
+                break;
+            case NO_SEARCH_REQUEST:
+                infoTv.setVisibility(View.VISIBLE);
+                infoTv.setText(getString(R.string.search_results));
+                break;
         }
     }
 
@@ -93,6 +125,7 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         outState.putString(KeyHelper.ACCESS_TOKEN, accessToken);
         outState.putBoolean("is_searching", isSearching);
         outState.putString("query", mQuery);
+        outState.putSerializable("status", mStatus);
         super.onSaveInstanceState(outState);
     }
 
@@ -131,7 +164,6 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
                 }
 
                 findJobs(query);
-
                 infoTv.setVisibility(View.INVISIBLE);
                 jobsListView.setVisibility(View.INVISIBLE);
                 progressBar.setVisibility(View.VISIBLE);
@@ -150,6 +182,24 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         return true;
     }
 
+    @Override
+    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+        Intent intent = new Intent(this, JobActivity.class);
+        intent.putExtra(KeyHelper.ACCESS_TOKEN, accessToken);
+        intent.putExtra(KeyHelper.ID, mJobsList.get(position).getId());
+        startActivity(intent);
+    }
+
+    @Override
+    public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+        Intent intent = new Intent(this, RecommendationActivity.class);
+        intent.putExtra(KeyHelper.ACCESS_TOKEN, accessToken);
+        intent.putExtra(KeyHelper.ID, mJobsList.get(position).getId());
+        startActivity(intent);
+        return true;
+    }
+
+    @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem searchItem = menu.findItem(R.id.search);
         searchItem.setVisible(accessToken != null);
@@ -157,10 +207,11 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
     }
 
     private void authorize() {
+        mStatus = SearchStatus.AUTHORIZING;
         List<NameValuePair> authParamsList = new LinkedList<NameValuePair>();
         authParamsList.add(new BasicNameValuePair("grant_type", "client_credentials"));
         String authParams = URLEncodedUtils.format(authParamsList, "UTF-8");
-        new AuthorizeTask().execute(Credentials.AUTH_URL + "?" + authParams, Credentials.USER_ID);
+        new AuthJobSearchTask().execute(Credentials.AUTH_URL + "?" + authParams, Credentials.USER_ID);
 
         progressBar.setVisibility(View.VISIBLE);
         jobsListView.setVisibility(View.INVISIBLE);
@@ -168,10 +219,11 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
     }
 
     private void authorize(String query) {
+        mStatus = SearchStatus.AUTHORIZING;
         List<NameValuePair> authParamsList = new LinkedList<NameValuePair>();
         authParamsList.add(new BasicNameValuePair("grant_type", "client_credentials"));
         String authParams = URLEncodedUtils.format(authParamsList, "UTF-8");
-        new AuthorizeTask(query).execute(Credentials.AUTH_URL + "?" + authParams, Credentials.USER_ID);
+        new AuthJobSearchTask(query).execute(Credentials.AUTH_URL + "?" + authParams, Credentials.USER_ID);
 
         progressBar.setVisibility(View.VISIBLE);
         jobsListView.setVisibility(View.INVISIBLE);
@@ -184,44 +236,17 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         paramsList.add(new BasicNameValuePair("q", query));
         String urlParams = URLEncodedUtils.format(paramsList, "UTF-8");
 
-        new JobSearchTask().execute(Credentials.BASE_URL + "?" + urlParams, accessToken);
+        new GetJobsTask().execute(Credentials.BASE_URL + "?" + urlParams, accessToken);
     }
 
-    @Override
-    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-        Intent intent = new Intent(this, JobActivity.class);
-        intent.putExtra(KeyHelper.ACCESS_TOKEN, accessToken);
-        intent.putExtra(KeyHelper.ID, mJobsList.get(position).getId());
-        startActivity(intent);
-    }
-
-    class AuthorizeTask extends AsyncTask<String, Void, JSONObject> {
-
+    class AuthJobSearchTask extends AuthorizeTask {
         String query;
 
-        public AuthorizeTask() {
+        public AuthJobSearchTask() {
         }
 
-        public AuthorizeTask(String query) {
+        public AuthJobSearchTask(String query) {
             this.query = query;
-        }
-
-        @Override
-        protected JSONObject doInBackground(String... params) {
-            try {
-                HttpClient client = new DefaultHttpClient();
-                HttpPost request = new HttpPost(params[0]);
-                request.setHeader("Authorization", "Basic " + params[1]);
-                request.setHeader("Content-Type", "application/x-www-form-urlencoded");
-                HttpResponse response = client.execute(request);
-                if (response.getStatusLine().getStatusCode() == 200)
-                    return new JSONObject(EntityUtils.toString(response.getEntity()));
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            return null;
         }
 
         @Override
@@ -236,6 +261,9 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
                 editor.putString(KeyHelper.ACCESS_TOKEN, accessToken);
                 editor.apply();
 
+                mStatus = SearchStatus.NO_SEARCH_REQUEST;
+                updateStatus();
+                invalidateOptionsMenu();
                 if (query != null)
                     findJobs(query);
                 progressBar.setVisibility(View.INVISIBLE);
@@ -245,8 +273,7 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         }
     }
 
-    class JobSearchTask extends AsyncTask<String, Void, JSONObject> {
-
+    class FindJobsTask extends AsyncTask<String, Void, JSONObject> {
         @Override
         protected JSONObject doInBackground(String... params) {
             try {
@@ -265,7 +292,9 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
             }
             return null;
         }
+    }
 
+    class GetJobsTask extends FindJobsTask {
         @Override
         protected void onPostExecute(JSONObject jsonObject) {
             super.onPostExecute(jsonObject);
@@ -275,10 +304,14 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
             try {
                 String total = jsonObject.getString(JSONHelper.TOTAL);
                 if (Integer.valueOf(total) == 0) {
-                    infoTv.setText(getString(R.string.no_jobs_found));
-                    infoTv.setVisibility(View.VISIBLE);
+                    mStatus = SearchStatus.NO_JOBS_FOUND;
+                    updateStatus();
+                    mJobsList.clear();
 
                 } else {
+                    mStatus = SearchStatus.DATA_RECIEVED;
+                    updateStatus();
+
                     mJobsList = new ArrayList<JobListItem>();
                     JSONArray searchResult = jsonObject.getJSONArray(JSONHelper.SEARCH_RESULTS);
                     for (int i = 0; i < searchResult.length(); i++) {
@@ -287,6 +320,7 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
                     jobsListView.setAdapter(new JobAdapter(MainActivity.this, mJobsList));
                     jobsListView.setVisibility(View.VISIBLE);
 
+                    Toast.makeText(MainActivity.this, "Long press on item in order to see recommended jobs.", Toast.LENGTH_LONG).show();
                     isSearching = false;
                     mQuery = null;
                 }
@@ -297,7 +331,6 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
     }
 
     class JobAdapter extends BaseAdapter {
-
         private LayoutInflater inflater;
         private ArrayList<JobListItem> data;
 
@@ -323,7 +356,7 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            ViewHolder holder = new ViewHolder();
+            ViewHolder holder;
             if (convertView == null) {
                 holder = new ViewHolder();
                 convertView = inflater.inflate(R.layout.row_job_search, parent, false);
@@ -348,6 +381,4 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
             TextView companyTv;
         }
     }
-
-
 }

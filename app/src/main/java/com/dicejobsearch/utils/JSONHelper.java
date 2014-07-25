@@ -18,4 +18,10 @@ public class JSONHelper {
     public static final String ACCESS_TOKEN = "access_token";
     public static final String DESCRIPTION = "description";
     public static final String SKILLS = "skills";
+    public static final String ITEMS = "items";
+    public static final String HREF = "href";
+    public static final String REGION = "region";
+    public static final String POSTAL_CODE = "postalCode";
+    public static final String RECOMMENDATION_RATING = "recommendationRating";
+    public static final String JOB = "job";
 }

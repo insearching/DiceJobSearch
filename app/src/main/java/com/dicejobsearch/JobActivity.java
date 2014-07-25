@@ -5,8 +5,6 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.webkit.WebView;
 import android.widget.ProgressBar;
@@ -22,7 +20,6 @@ import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
@@ -43,6 +40,7 @@ public class JobActivity extends Activity {
     private String accessToken = null;
     private String id = null;
     private JobDetails jobDetails = null;
+    private String skillsStr = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,11 +56,15 @@ public class JobActivity extends Activity {
         Bundle extras = getIntent().getExtras();
         if (savedInstanceState != null) {
             accessToken = savedInstanceState.getString(KeyHelper.ACCESS_TOKEN);
+            skillsStr = savedInstanceState.getString(KeyHelper.SKILLS);
             jobDetails = savedInstanceState.getParcelable(KeyHelper.JOB_DETAILS);
+
+            skillsTv.setText(skillsStr);
             descrWebView.loadDataWithBaseURL(null, jobDetails.getDescription(), "text/html", "utf-8", null);
         } else if (extras != null) {
             accessToken = extras.getString(KeyHelper.ACCESS_TOKEN);
             id = extras.getString(KeyHelper.ID);
+
 
             new GetJobInfo().execute(Credentials.BASE_URL + "/" + id, accessToken);
 
@@ -75,18 +77,8 @@ public class JobActivity extends Activity {
     protected void onSaveInstanceState(Bundle outState) {
         outState.putString(KeyHelper.ACCESS_TOKEN, accessToken);
         outState.putParcelable(KeyHelper.JOB_DETAILS, jobDetails);
+        outState.putString(KeyHelper.SKILLS, skillsStr);
         super.onSaveInstanceState(outState);
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.job, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        return super.onOptionsItemSelected(item);
     }
 
     class GetJobInfo extends AsyncTask<String, Void, JSONObject> {
@@ -118,10 +110,10 @@ public class JobActivity extends Activity {
             jobDetails = new JobDetails(jsonObject);
             descrWebView.loadDataWithBaseURL(null, jobDetails.getDescription(), "text/html", "utf-8", null);
             String[] skills = jobDetails.getSkills();
-            String skillsStr = skillsTv.getText().toString() + " ";
-            for(int i=0; i<skills.length; i++){
+            skillsStr = getString(R.string.skills);
+            for (int i = 0; i < skills.length; i++) {
                 skillsStr += skills[i];
-                if(i < skills.length-1)
+                if (i < skills.length - 1)
                     skillsStr += ", ";
             }
             skillsTv.setText(skillsStr);
@@ -135,40 +127,12 @@ public class JobActivity extends Activity {
         List<NameValuePair> authParamsList = new LinkedList<NameValuePair>();
         authParamsList.add(new BasicNameValuePair("grant_type", "client_credentials"));
         String authParams = URLEncodedUtils.format(authParamsList, "UTF-8");
-        new AuthorizeTask().execute(Credentials.AUTH_URL + "?" + authParams, Credentials.USER_ID);
+        new AuthJobTask().execute(Credentials.AUTH_URL + "?" + authParams, Credentials.USER_ID);
 
         progressBar.setVisibility(View.VISIBLE);
     }
 
-    class AuthorizeTask extends AsyncTask<String, Void, JSONObject> {
-
-        String query;
-
-        public AuthorizeTask() {
-        }
-
-        public AuthorizeTask(String query) {
-            this.query = query;
-        }
-
-        @Override
-        protected JSONObject doInBackground(String... params) {
-            try {
-                HttpClient client = new DefaultHttpClient();
-                HttpPost request = new HttpPost(params[0]);
-                request.setHeader("Authorization", "Basic " + params[1]);
-                request.setHeader("Content-Type", "application/x-www-form-urlencoded");
-                HttpResponse response = client.execute(request);
-                if (response.getStatusLine().getStatusCode() == 200)
-                    return new JSONObject(EntityUtils.toString(response.getEntity()));
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            return null;
-        }
-
+    class AuthJobTask extends AuthorizeTask {
         @Override
         protected void onPostExecute(JSONObject jsonObject) {
             super.onPostExecute(jsonObject);

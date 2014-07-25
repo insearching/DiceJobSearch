@@ -26,6 +26,9 @@
             android:name=".JobActivity"
             android:label="@string/title_activity_job" >
         </activity>
+        <activity
+            android:name=".RecommendationActivity"
+            android:label="@string/title_activity_recommendation" >
+        </activity>
     </application>
-
 </manifest>

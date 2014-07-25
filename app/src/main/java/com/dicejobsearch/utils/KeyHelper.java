@@ -7,4 +7,6 @@ public class KeyHelper {
     public static final String ACCESS_TOKEN = "access_token";
     public static final String ID = "id";
     public static final String JOB_DETAILS = "job_details";
+    public static final String SKILLS = "skills";
+    public static final String JOB_LIST = "job_list";
 }
